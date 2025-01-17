@@ -1,7 +1,10 @@
 // Test ID: IIDSAT
-import { useFetcher, useLoaderData } from 'react-router-dom';
-
+import { useFetcher, useLoaderData  } from 'react-router-dom';
+import { doc, setDoc } from 'firebase/firestore';
+import db from '../../services/firebaseConfig/'; // Firebase configuration
 import OrderItem from './OrderItem';
+import Razorpay from 'razorpay';
+import { useEffect, useState } from 'react';
 
 import { getOrder } from '../../services/apiRestaurant';
 import {
@@ -9,12 +12,12 @@ import {
   formatCurrency,
   formatDate,
 } from '../../utils/helpers';
-import { useEffect } from 'react';
 import UpdateOrder from './UpdateOrder';
 
 function Order() {
-  const order = useLoaderData();
+  const initialOrder = useLoaderData(); // Initial order data from loader
   const fetcher = useFetcher();
+  const [order, setOrder] = useState(initialOrder);
 
   useEffect(
     function () {
@@ -35,6 +38,72 @@ function Order() {
   } = order;
 
   const deliveryIn = calcMinutesLeft(estimatedDelivery);
+
+  // Razorpay payment handler
+  const handlePayment = async () => {
+    const API_BASE_URL = 'http://localhost:5000'; // Replace with your deployed backend URL in production
+
+    try {
+      // Call your backend to create a Razorpay order
+      const response = await fetch(`${API_BASE_URL}/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: (orderPrice + priorityPrice) * 100, // Amount in paise
+          currency: 'INR',
+          receipt: `receipt#${id}`, // Example receipt number
+        }),
+      });
+
+      const orderData = await response.json();
+
+      // Initialize Razorpay Checkout
+      const options = {
+        key:  import.meta.env.VITE_RAZORPAY_KEY_ID, // Replace with your Razorpay Key ID
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'Fast React Pizza',
+        description: 'Payment for your order',
+        order_id: orderData.id, // Razorpay order ID
+        handler: async function (response) {
+          // Payment was successful
+          alert('Payment Successful!');
+
+          // Store payment details in Firestore (optional)
+          const paymentRef = doc(db, 'payments', response.razorpay_payment_id);
+          await setDoc(paymentRef, {
+            orderId: id,
+            paymentId: response.razorpay_payment_id,
+            razorpayOrderId: response.razorpay_order_id,
+            razorpaySignature: response.razorpay_signature,
+            amount: orderPrice + priorityPrice,
+            status: 'Paid',
+          });
+
+          // Redirect to Thank You page
+          setOrder((prevOrder) => ({
+            ...prevOrder,
+            status: 'Paid',
+            priority: true, // Example update, adjust as per your requirements
+          }));
+        },
+        prefill: {
+          name: 'Your Name', // Replace with user's name
+          email: 'your-email@example.com', // Replace with user's email
+          contact: '9999999999', // Replace with user's contact number
+        },
+        theme: {
+          color: '#F37254', // Optional: Customize theme color
+        },
+      };
+
+      const rzp = new Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      console.error('Error initiating Razorpay payment:', error);
+      alert('Payment failed. Please try again.');
+    }
+  };
 
   return (
     <div className="space-y-8 px-4 py-6">
@@ -91,15 +160,30 @@ function Order() {
           To pay on delivery: {formatCurrency(orderPrice + priorityPrice)}
         </p>
       </div>
-
-      {!priority && <UpdateOrder order={order} />}
+      <button
+        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded"
+        onClick={handlePayment}
+      >   Proceed to Payment
+      </button>
+      {<UpdateOrder order={order} /> && !priority  }
     </div>
   );
 }
 
 export async function loader({ params }) {
-  const order = await getOrder(params.orderId);
-  return order;
+  try {
+    // Fetch the order details using your existing `getOrder` function
+    const order = await getOrder(params.orderId);
+
+    // Store the fetched order details into Firestore
+    const orderRef = doc(db, 'orders', params.orderId); // Reference to the Firestore document
+    await setDoc(orderRef, order, { merge: true }); // Save to Firestore (merge prevents overwriting existing fields)
+    // Return the fetched order
+    return order;
+  } catch (error) {
+    console.error('Error handling order:', error);
+    throw error; // Re-throw the error to be handled by the router
+  }
 }
 
 export default Order;

@@ -1,6 +1,8 @@
 import { useFetcher } from 'react-router-dom';
 import Button from '../../ui/Button';
 import { updateOrder } from '../../services/apiRestaurant';
+import { doc, updateDoc } from 'firebase/firestore';
+import db from '../../services/firebaseConfig/'; // Firebase configuration
 
 function UpdateOrder({ order }) {
   const fetcher = useFetcher();
@@ -17,5 +19,17 @@ export default UpdateOrder;
 export async function action({ request, params }) {
   const data = { priority: true };
   await updateOrder(params.orderId, data);
-  return null;
+
+  try {
+    // Reference the specific order document in Firestore
+    const orderRef = doc(db, 'orders', params.orderId);
+
+    // Update the document with new data
+
+    await updateDoc(orderRef, data);
+
+    console.log('Order updated successfully');
+  } catch (error) {
+    console.error('Error updating order:', error);
+  }
 }
