@@ -41,7 +41,7 @@ function Order() {
 
   // Razorpay payment handler
   const handlePayment = async () => {
-    const API_BASE_URL = 'https://678aa4165c3dee00083c6200--fasttpizzaa.netlify.app/'; // Replace with your deployed backend URL in production
+    const API_BASE_URL = 'http://localhost:5000'; // Replace with your deployed backend URL in production
 
     try {
       // Call your backend to create a Razorpay order
