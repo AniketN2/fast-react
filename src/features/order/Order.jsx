@@ -44,16 +44,33 @@ function Order() {
     const API_BASE_URL = 'http://localhost:5000'; // Replace with your deployed backend URL in production
 
     try {
-      // Call your backend to create a Razorpay order
-      const response = await fetch(`${API_BASE_URL}/create-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: (orderPrice + priorityPrice) * 100, // Amount in paise
-          currency: 'INR',
-          receipt: `receipt#${id}`, // Example receipt number
-        }),
-      });
+      // const response = await fetch(`${API_BASE_URL}/create-order`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({
+      //     amount: (orderPrice + priorityPrice) * 100, 
+      //     currency: 'INR',
+      //     receipt: `receipt#${id}`, 
+      //   }),
+      // }); Previous Working Code
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+
+      script.onload = async () => {
+        // Fetch order details from your backend
+        const response = await fetch(`${API_BASE_URL}/create-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: (orderPrice + priorityPrice) ,
+            currency: 'INR',
+            receipt: `receipt#${id}`,
+          }),
+        });
+
 
       const orderData = await response.json();
 
@@ -97,8 +114,10 @@ function Order() {
         },
       };
 
-      const rzp = new Razorpay(options);
+      // const rzp = new Razorpay(options); previous code
+      const rzp = new window.Razorpay(options);
       rzp.open();
+    };
     } catch (error) {
       console.error('Error initiating Razorpay payment:', error);
       alert('Payment failed. Please try again.');
